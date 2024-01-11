@@ -89,7 +89,7 @@ class GPR(nn.Module):
         u_k = []
         newu = self.user_embed(users)
         for i in range(self.k):
-            newu = self.user_layers[i](u_k) + torch.sum(self.outgoing_layers[i](p_k[i]),dim=0)
+            newu = self.user_layers[i](newu) + torch.sum(self.outgoing_layers[i](p_k[i]),dim=0)
             u_k.append(newu)
         result_u = u_k[0]
         result_q = q_k[0]
