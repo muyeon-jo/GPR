@@ -79,7 +79,7 @@ def train(train_matrix, test_positive, test_negative, val_positive, val_negative
             optimizer.zero_grad() 
             user_id, user_history, train_positives, train_negatives, distance_positive, distance_negative = get_GPR_batch(train_matrix,test_negative,num_items,buid,args.num_ng,dist_mat)
             
-            rating_ul, rating_ul_prime, e_ij_hat = model(user_id, user_history, train_positives, train_negatives, distance_positive, distance_negative)
+            rating_ul, rating_ul_prime, e_ij_hat = model(user_history, train_positives, train_negatives)
             loss = model.loss_function(rating_ul, rating_ul_prime, e_ij_hat )
             loss.backward() 
 
