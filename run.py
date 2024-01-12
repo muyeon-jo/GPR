@@ -8,7 +8,7 @@ import datasets
 import torch
 from powerLaw import PowerLaw, dist
 from model import GGLR, GPR
-from batches import get_GeoIE_batch
+from batches import get_GPR_batch
 import time
 import random
 import multiprocessing as mp
@@ -52,16 +52,18 @@ def train(train_matrix, test_positive, test_negative, val_positive, val_negative
     # dist_mat = distance_mat(num_items, G.poi_coos)
     # pickle_save(dist_mat,"dist_mat.pkl")
     dist_mat = pickle_load("dist_mat.pkl")
+    dist_mat = torch.tensor(dist_mat,dtype=torch.float32).to(DEVICE)
 
-    df = pd.read_csv('./data/Tokyo/checkins.txt', sep='\t',names=['user_id', 'poi_id', 'timestamp'])
-    user_sequences = df.groupby('user_id').apply(create_poi_sequence).tolist()
+    # df = pd.read_csv('./data/Tokyo/checkins.txt', sep='\t',names=['user_id', 'poi_id', 'timestamp'])
+    # user_sequences = df.groupby('user_id').apply(create_poi_sequence).tolist()
     
-    poi_sequences = []
-    for li in user_sequences:
-        for pois in li:
-            poi_sequences.append(pois)
-    adj_mat = create_weighted_adjacency_matrix(poi_sequences, num_items)
-
+    # poi_sequences = []
+    # for li in user_sequences:
+    #     for pois in li:
+    #         poi_sequences.append(pois)
+    # adj_mat = torch.tensor(create_weighted_adjacency_matrix(poi_sequences, num_items),dtype=torch.float32).to(DEVICE)
+    # pickle_save(adj_mat,"adj_mat.pkl")
+    adj_mat = pickle_load("adj_mat.pkl")
     model = GPR(num_users, num_items, args.factor_num, 2, adj_mat,dist_mat).to(DEVICE)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.lamda)
@@ -72,13 +74,13 @@ def train(train_matrix, test_positive, test_negative, val_positive, val_negative
 
         idx = list(range(num_users))
         
-        random.shuffle(idx)
+        # random.shuffle(idx)
         for buid in idx:
             optimizer.zero_grad() 
-            user_id, user_history, train_data, train_label, freq, distances = get_GeoIE_batch(train_matrix,test_negative,num_items,buid,args.num_ng,dist_mat)
+            user_id, user_history, train_positives, train_negatives, distance_positive, distance_negative = get_GPR_batch(train_matrix,test_negative,num_items,buid,args.num_ng,dist_mat)
             
-            pref, w = model(user_id, train_data, user_history, freq, distances)
-            loss = model.loss_function(pref,train_label.unsqueeze(1), w)
+            pref, w = model(user_id, user_history, train_positives, train_negatives, distance_positive, distance_negative)
+            loss = model.loss_function(pref, w)
             loss.backward() 
 
             train_loss += loss.item()
@@ -121,7 +123,8 @@ def create_weighted_adjacency_matrix(edge_list, num_nodes):
     # Fill in the matrix based on the edge list
     for edge in edge_list:
         start, end = edge
-        adjacency_matrix[int(start)][int(end)] += 1  # 중복된 엣지는 중복된 만큼 값을 추가
+        if int(start) != int(end):
+            adjacency_matrix[int(start)][int(end)] += 1  # 중복된 엣지는 중복된 만큼 값을 추가
 
     return adjacency_matrix
 

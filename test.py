@@ -1,7 +1,13 @@
 import torch
 import numpy as np
-
-freq = np.array([1,2,2,1,3,1,1,1]).repeat((10+1),axis=0)
-print(freq)
-a = torch.LongTensor(freq).reshape(-1,1)
-print(a)
+a = list(range(10))
+b = list(range(10,20))
+c = list(range(20,30))
+d = [a,b,c]
+idx = [0,2]
+col = [[1,3,5,7],[0,1,2,3]]
+tt = torch.tensor(d,dtype=torch.float32)
+print(tt)
+print(tt**2)
+print(torch.sum(tt,dim=0))
+print(torch.sum(tt,dim=1))
