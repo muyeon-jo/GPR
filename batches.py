@@ -19,84 +19,55 @@ def dist(loc1, loc2):
     earth_radius = 6371
     return arc * earth_radius
 
-def get_GPR_batch(train_matrix,test_negative, num_poi, uid, negative_num, dist_mat):
+def get_GPR_batch(train_matrix,test_negative, num_poi, uids, negative_num):
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    item_list = np.arange(num_poi).tolist()
+    train_positives = []
+    train_negatives = []
+    user_id = []
+    for uid in uids:
+        item_list = np.arange(num_poi).tolist()
 
-    positives = train_matrix.getrow(uid).indices.tolist()
-    ttt = train_matrix.getrow(uid).data
-    random.shuffle(positives)
-    histories = np.array([positives]).repeat(len(positives)*(negative_num+1),axis=0)
+        positives = train_matrix.getrow(uid).indices.tolist()
+        random.shuffle(positives)
+        for ui in range(len(positives)):
+            user_id.append(uid)
 
-   
+        negative = list(set(item_list)-set(positives) - set(test_negative[uid]))
+        random.shuffle(negative)
 
-    negative = list(set(item_list)-set(positives) - set(test_negative[uid]))
-    random.shuffle(negative)
+        negative = negative[:len(positives)*negative_num]
+        negatives = np.array(negative).reshape([-1,negative_num])
 
-    negative = negative[:len(positives)*negative_num]
-    negatives = np.array(negative).reshape([-1,negative_num])
+        a= np.array(positives).reshape(-1,1)
+        for po in a:
+            train_positives.append(po.item())
 
-    a= np.array(positives).reshape(-1,1)
-    train_positives = a
-    train_negatives = negatives
-    
-    distance_positive = []
-    distance_negative = []
-    for t in positives:
-        temp = []
-        for hi in positives:
-            temp.append(dist_mat[t][hi])
-        distance_positive.append(temp)
-
-    for t in negatives:
-        temp = []
-        for hi in positives:
-            temp.append(dist_mat[t.item()][hi])
-        distance_negative.append(temp)
-    # positive_label = np.array([1]).repeat(len(positives)).reshape(-1,1)
-    # negative_label = np.array([0]).repeat(len(positives)*negative_num).reshape(-1,negative_num)
-    # labels = np.concatenate((positive_label,negative_label),axis=-1).reshape(-1)
-
-    user_history = torch.LongTensor(histories).to(DEVICE)
-    # train_data = torch.LongTensor(data).to(DEVICE)
-    # train_label = torch.tensor(labels,dtype=torch.float32).to(DEVICE)
+        for ne in negatives:
+            train_negatives.append(ne.item())
+        
     train_positives = torch.LongTensor(train_positives).squeeze().to(DEVICE)
     train_negatives = torch.LongTensor(train_negatives).squeeze().to(DEVICE)
-    user_id = torch.LongTensor(np.array([uid]).repeat(len(train_positives))).to(DEVICE)
-    # freq = np.array(train_matrix.getrow(uid).data).repeat((negative_num+1),axis=0)
-    # freq = torch.LongTensor(freq).reshape(-1,1).to(DEVICE)
-    distance_positive = torch.tensor(distance_positive,dtype=torch.float32).to(DEVICE)
-    distance_negative = torch.tensor(distance_negative,dtype=torch.float32).to(DEVICE)
+    user_id = torch.LongTensor(user_id).to(DEVICE)
 
-    return user_id, user_history, train_positives, train_negatives, distance_positive, distance_negative
+    return user_id, train_positives, train_negatives
 
-def get_GPR_batch_test(train_matrix, test_positive, test_negative, uid, dist_mat):
+def get_GPR_batch_test(train_matrix, test_positive, test_negative, uid):
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    batch = []
-    history = train_matrix.getrow(uid).indices.tolist()
+    datas = []
     negative = test_negative[uid]
     positive = test_positive[uid]
-    histories = np.array([history]).repeat(len(positive)+len(negative),axis=0)
+    user_id = []
 
-    data = np.concatenate((negative,positive))
+    for ui in range(len(positive) + len(negative)):
+        user_id.append(uid)
 
-    distances = []
-    for t in data:
-        temp = []
-        for hi in history:
-            temp.append(dist_mat[t][hi])
-        distances.append(temp)
+    for i in negative:
+        datas.append(i)
 
-    positive_label = np.array([1]).repeat(len(positive))
-    negative_label = np.array([0]).repeat(len(negative))
-    labels = np.concatenate((negative_label,positive_label))
+    for i in positive:
+        datas.append(i)
 
-    user_history = torch.LongTensor(histories).to(DEVICE)
-    train_data = torch.LongTensor(data).to(DEVICE)
-    train_label = torch.tensor(labels, dtype=torch.float32).to(DEVICE)
-    user_id = torch.LongTensor(np.array([uid]).repeat(len(train_data))).to(DEVICE)
-    freq = np.ones([len(positive)+len(negative)])
-    freq = torch.LongTensor(freq).reshape(-1,1).to(DEVICE)
-    distances = torch.tensor(distances,dtype=torch.float32).to(DEVICE)
+    datas = torch.LongTensor(datas).to(DEVICE)
+    user_id = torch.LongTensor(user_id).to(DEVICE)
 
-    return user_id, user_history, train_data, train_label, freq, distances
+    return user_id, datas

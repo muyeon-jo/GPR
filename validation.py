@@ -7,11 +7,11 @@ def GeoIE_validation(model, args,num_users, positive, negative, train_matrix,val
     recommended_list = []
     train_loss=0.0
     for user_id in range(num_users):
-        user_id, user_history, target_list, train_label, freq, distances = get_GPR_batch_test(train_matrix,positive,negative,user_id, dist_mat)
-        prediction, w = model(user_id, target_list, user_history, freq, distances)
+        user_id, target_list = get_GPR_batch_test(train_matrix,positive,negative,user_id)
+        rating_ul, rating_ul_prime, e_ij_hat = model(user_id, target_list, target_list)
         # loss = model.loss_func(prediction,train_label)
         # train_loss += loss.item()
-        _, indices = torch.topk(prediction.squeeze(), args.topk)
+        _, indices = torch.topk(rating_ul.squeeze(), args.topk)
         recommended_list.append([target_list[i].item() for i in indices])
     
     precision, recall, hit = eval_metrics.evaluate_mp(positive,recommended_list,k_list,val_flag)

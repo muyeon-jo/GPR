@@ -41,20 +41,27 @@ class GGLR(nn.Module):
         e_ij_hat = []
         p_k = []
         q_k = []
+        t =adjacency_matrix.nonzero().T
         outgoing1 = self.outgoing_conv1(p_outgoing, adjacency_matrix.nonzero().T)
-        outgoing1 = torch.mm(adj_mat, outgoing1) #/ D_outgoing.reshape(-1,1)#(poi * poi) (dot) (poi * emb)
+        outgoing1 = torch.mm(adj_mat, outgoing1) #(poi * poi) (dot) (poi * emb)
+        tt = D_outgoing.reshape(-1,1)
+        ttt = D_ingoing.reshape(-1,1)
+        # outgoing1 = torch.div(outgoing1, D_outgoing.reshape(-1,1))
         outgoing1 = self.leaky_relu(outgoing1)
 
         outgoing2 = self.outgoing_conv2(outgoing1, adjacency_matrix.nonzero().T)
-        outgoing2 = torch.mm(adj_mat,outgoing2) #/ D_outgoing.reshape(-1,1)
+        outgoing2 = torch.mm(adj_mat,outgoing2)
+        # outgoing2 = torch.div(outgoing2, D_outgoing.reshape(-1,1))
         outgoing2 = self.leaky_relu(outgoing2)
         
         ingoing1 = self.ingoing_conv1(q_ingoing, adjacency_matrix.T.nonzero().T)
-        ingoing1 = torch.mm(adj_mat.T, ingoing1) #/ D_ingoing.reshape(-1,1)#(poi * poi) (dot) (poi * emb)
+        ingoing1 = torch.mm(adj_mat.T, ingoing1) #(poi * poi) (dot) (poi * emb)
+        # ingoing1 = torch.div(ingoing1,  D_ingoing.reshape(-1,1))
         ingoing1 = self.leaky_relu(ingoing1)
 
         ingoing2 = self.ingoing_conv2(ingoing1, adjacency_matrix.T.nonzero().T)
-        ingoing2 = torch.mm(adj_mat.T,ingoing2)# / D_ingoing.reshape(-1,1)
+        ingoing2 = torch.mm(adj_mat.T,ingoing2)
+        # ingoing2 = torch.div(ingoing2, D_ingoing.reshape(-1,1))
         ingoing2 = self.leaky_relu(ingoing2)
 
         fx_ij = torch.mul(torch.mul(distance_matrix**self.b,self.a), torch.exp(torch.mul(distance_matrix,self.c)))
@@ -63,7 +70,9 @@ class GGLR(nn.Module):
         return [outgoing1,outgoing2], [ingoing1,ingoing2], e_ij_hat
     
     def loss_function(self, ground, predict):
-        self.mse_loss(ground, predict)
+        # ground = ground.reshape(-1,1)
+        # predict = predict.reshape(-1,1)
+        return self.mse_loss(ground, predict)
 class GPR(nn.Module):
     def __init__(self, user_num, poi_num, embed_dim, layer_num, POI_POI_Graph, distance_matrix,user_POI_Graph, lambda1=0.2):
         super(GPR, self).__init__()
@@ -129,12 +138,12 @@ class GPR(nn.Module):
         pp = result_q[train_positives]
         qq = result_q[train_negatives]
 
-        rating_ul = torch.dot(tt, pp)
-        rating_ul_prime = torch.dot(tt,qq)
+        rating_ul = torch.mm(tt, pp.T).diag()
+        rating_ul_prime = torch.mm(tt,qq.T).diag()
         return rating_ul, rating_ul_prime, e_ij_hat 
     
     def loss_function(self, rating_ul, rating_ul_p, e_ij_hat):
         loss1 = self.gglr.loss_function(self.POI_POI_Graph,e_ij_hat)
-        loss2 = -torch.sum(torch.log(self.sigmoid(rating_ul - rating_ul_p)))
+        loss2 = -torch.sum(torch.log(self.sigmoid(rating_ul - rating_ul_p)+ 0.0000001))
         loss = loss2 + loss1*self.lambda1
         return loss
