@@ -63,8 +63,8 @@ def train(train_matrix, test_positive, test_negative, val_positive, val_negative
     #         poi_sequences.append(pois)
     # adj_mat = torch.tensor(create_weighted_adjacency_matrix(poi_sequences, num_items),dtype=torch.float32).to(DEVICE)
     # pickle_save(adj_mat,"adj_mat.pkl")
-    adj_mat = pickle_load("adj_mat.pkl")
-    model = GPR(num_users, num_items, args.factor_num, 2, adj_mat,dist_mat).to(DEVICE)
+    # adj_mat = pickle_load("adj_mat.pkl")
+    model = GPR(num_users, num_items, args.factor_num, 2, dataset.POI_POI_Graph,dist_mat, dataset.user_POI_Graph).to(DEVICE)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.lamda)
     for e in range(args.epochs):
@@ -79,8 +79,8 @@ def train(train_matrix, test_positive, test_negative, val_positive, val_negative
             optimizer.zero_grad() 
             user_id, user_history, train_positives, train_negatives, distance_positive, distance_negative = get_GPR_batch(train_matrix,test_negative,num_items,buid,args.num_ng,dist_mat)
             
-            pref, w = model(user_id, user_history, train_positives, train_negatives, distance_positive, distance_negative)
-            loss = model.loss_function(pref, w)
+            rating_ul, rating_ul_prime, e_ij_hat = model(user_id, user_history, train_positives, train_negatives, distance_positive, distance_negative)
+            loss = model.loss_function(rating_ul, rating_ul_prime, e_ij_hat )
             loss.backward() 
 
             train_loss += loss.item()
@@ -138,10 +138,10 @@ def create_poi_sequence(user_data):
 
 def main():
     print("data loading")
-    # dataset_ = datasets.Dataset(15359,14586,"./data/Yelp/")
-    # train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords = dataset_.generate_data(0)
-    # pickle_save((train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords,dataset_),"dataset_Yelp.pkl")
-    train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords, dataset_ = pickle_load("dataset_Tokyo.pkl")
+    dataset_ = datasets.Dataset(3725,10768,"./data/Tokyo/")
+    train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords = dataset_.generate_data(0)
+    pickle_save((train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords,dataset_),"dataset_Tokyo.pkl")
+    # train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords, dataset_ = pickle_load("dataset_Tokyo.pkl")
     print("train data generated")
     
     G.fit_distance_distribution(train_matrix, place_coords)

@@ -4,88 +4,6 @@ import numpy as np
 import random
 import csv
 from haversine import haversine
-def get_region(place_coords,size,path):
-    """
-    place_coords: list, index:poi_id value:(poi_lat, poi_lng)
-    size: int, region size(m)
-    """
-    latitude_max = -55000
-    latitude_min =55000
-    longitude_max = -55000
-    longitude_min = 55000
-    places = []
-    for lid in range(len(place_coords)): # lat, long의 min, max 구하기
-        now_lat = place_coords[lid][0]
-        now_lng = place_coords[lid][1]
-        latitude_min = min(latitude_min, now_lat)
-        latitude_max = max(latitude_max, now_lat)
-        
-        longitude_min = min(longitude_min, now_lng)
-        longitude_max = max(longitude_max, now_lng)
-        places.append((lid,now_lat,now_lng))
-    
-    print("lat_max:{latmax} lat_min:{latmin}".format(latmax=latitude_max, latmin=latitude_min))
-    print("lng_max:{lngmax} lng_min:{lngmin}".format(lngmax=longitude_max, lngmin=longitude_min))
-
-    #사다리꼴 모양에서 윗변, 아랫변, 좌우 높이 구하기
-    width1 = haversine((latitude_max,longitude_max),(latitude_max,longitude_min), unit="m")
-    width2 = haversine((latitude_min,longitude_max),(latitude_min,longitude_min), unit="m")
-    
-    height1 = haversine((latitude_max,longitude_max),(latitude_min,longitude_max), unit="m")
-    height2 = haversine((latitude_max,longitude_min),(latitude_min,longitude_min), unit="m")
-
-    #지역 쪼개기
-    colnum = int((width2+width1)/2/size)
-    rownum = int(height1/size)
-    print("row: {} col: {}".format(rownum, colnum))
-    alpha = (latitude_max - latitude_min)/rownum # 가로 한칸단 좌표 크기
-    delta = (longitude_max - longitude_min)/colnum # 세로 한칸당 좌표 크기
-    areaRangeArr = np.zeros((rownum, colnum, 4)) # 지역 임베딩을 매트릭스로 표현
-    areaBusinessArr = dict()
-    for i in range(rownum): # 각 매트릭스 인덱스별로 dict형식의 lat,long 을 저장하기 위한 dict 선언
-        areaBusinessArr[i]=dict()
-        for j in range(colnum):
-            areaBusinessArr[i][j]=dict()
-
-    place_region = np.zeros([len(place_coords)])-1 #지역 임베딩을 저장할 array
-    for i in range(rownum):
-        print("row{}".format(i))
-        lat_min = latitude_min + alpha * (i) # lat 한칸의 시작 좌표, 위 delta처럼 alpha?로 지정해서 계산해도 될듯 ?
-        lat_max = latitude_min + alpha * (i+1) # lat 한칸의 끝나는 좌표
-        target = [x for x in places if x[1]>=lat_min and x[1]<=lat_max] # poi 좌표들 중 위 latitude 조건에 만족하는 poi들의 모음
-        for j in range(colnum):
-            lng_min = longitude_min + delta * j # long 한칸의 시작 좌표
-            lng_max = longitude_min + delta * (j+1) #long 한칸의 끝나는 좌표
-
-            # 구역을 나누는 좌표 저장
-            areaRangeArr[i][j][0] = lat_min
-            areaRangeArr[i][j][1] = lat_max
-            areaRangeArr[i][j][2] = lng_min
-            areaRangeArr[i][j][3] = lng_max
-
-            for lid in target: # 각 poi에 대하여, 이때 poi는 위 lat 좌표 안에 있는 poi들
-                if place_region[lid[0]]>=0: # 이미 region이 정해진 지역에 대해서는 pass
-                    continue
-                
-                now_lat = place_coords[lid[0]][0] # 여기 바로 lid[1] 해도 될듯 ?
-                now_lng = place_coords[lid[0]][1]
-                if (now_lng<lng_max ) and (now_lat < lat_max):
-                    place_region[lid[0]] = colnum*i + j 
-                elif j == colnum-1 and i == rownum-1: # 맨 마지막 좌표일 때 (20,20)
-                    if now_lng<=lng_max and now_lat <= lat_max: # 안쪽에 걸친다면
-                        place_region[lid[0]] = colnum*i + j # 
-                elif j == colnum-1:
-                    if now_lng<=lng_max and now_lat < lat_max:
-                        place_region[lid[0]] = colnum*i + j
-                elif i == rownum-1:
-                    if now_lng < lng_max and now_lat <= lat_max:
-                        place_region[lid[0]] = colnum*i + j
-                
-    f= open(path+"poi_region.txt","w")
-    for i in range(len(place_region)):
-        f.write("{}\t{}\n".format(i,int(place_region[i])))
-    f.close()
-
 def train_test_split_with_time(place_list, freq_list, time_list, test_size):
     li = []
     for i in range(len(place_list)):
@@ -123,7 +41,7 @@ def train_test_val_split_with_time(place_list, freq_list, time_list, test_size, 
     val = train_[:val_num]
     train = train_[val_num:]
 
-    random.shuffle(train)
+    # random.shuffle(train)
     test_place = []
     test_freq = []
     for i in test:
@@ -143,42 +61,7 @@ def train_test_val_split_with_time(place_list, freq_list, time_list, test_size, 
         val_place.append(i[0])
         val_freq.append(i[2])
     return train_place, test_place, val_place, train_freq, test_freq, val_freq
-def get_region_num(path):
-    input_file = 'poi_region.txt'
-    output_file = 'poi_region_sorted.txt'
 
-
-    # CSV 파일을 읽고 데이터를 리스트로 저장
-    data = []
-    with open(path+input_file, 'r', newline='') as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter='\t')
-    #data.append(header)
-        for row in csv_reader:
-            row = [int(row[0]), int(row[1])]
-            data.append(row)
-
-    data.sort(key=lambda x: x[1])  # region 기준으로 데이터를 정렬
-
-    idx = 0 # region을 0번부터 매핑시키기 위한 새로운 리스트 생성
-    before_region_id = data[0][1] # 맨 첫번째 buid 기준
-    new_data = []
-    for i in data: # 모든 데이터에 대하여
-        if i[1] == before_region_id: #buid가 같다면
-            new_data.append([i[0], idx]) 
-        else:
-            idx += 1
-            before_region_id = i[1]
-            new_data.append([i[0], idx])
-
-    new_data.sort(key=lambda x: x[0])  # user_id 순으로 정렬
-    ma = max(new_data, key=lambda x:x[1])
-    # 정렬된 데이터를 새로운 파일에 저장
-    with open(path+output_file, 'w', newline='') as csv_file:
-        csv_writer = csv.writer(csv_file, delimiter='\t')
-        csv_writer.writerows(new_data)
-
-    print("region num: {}".format(ma[1]+1))
-    return ma[1]+1
 def train_test_val_split(place_list, freq_list, test_size, val_size):
     li = []
     for i in range(len(place_list)):
@@ -374,6 +257,9 @@ class Dataset(object):
         val_negative = []
         test_positive = []
         test_negative = []
+        self.POI_POI_Graph = np.zeros([self.poi_num,self.poi_num])
+        self.user_POI_Graph = np.zeros([self.user_num,self.poi_num])
+
         pois = set(range(self.poi_num))
         for user_id in range(self.user_num):
             place_list = raw_matrix.getrow(user_id).indices
@@ -382,8 +268,15 @@ class Dataset(object):
             train_place, test_place, val_place, train_freq, test_freq, val_freq = train_test_val_split_with_time(place_list, freq_list, time_list, test_size, val_size)
             # train_place, test_place, train_freq, test_freq = train_test_split_with_time(place_list, freq_list, time_list, test_size)
             # train_place, test_place, val_place, train_freq, test_freq, val_freq = train_test_val_split(place_list, freq_list, test_size, val_size)
+
             for i in range(len(train_place)):
                 train_matrix[user_id, train_place[i]] = train_freq[i]
+
+                self.user_POI_Graph[user_id][train_place[i]] = 1
+
+                if i <len(train_place)-1:
+                    self.POI_POI_Graph[train_place[i]][train_place[i+1]] +=1
+                
             test_positive.append(test_place)
             val_positive.append(val_place)
 
@@ -420,7 +313,7 @@ class Dataset(object):
 
 if __name__ == '__main__':
     # train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords= Dataset(9902,6427,"./data/philadelphia_downtown/").generate_data()
-    train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords= Dataset(9902,6427,"./data/philadelphia_downtown/").generate_data()
+    train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords= Dataset(15359,14586,"./data/Yelp/").generate_data()
     print(train_matrix.shape, len(test_positive), len(place_coords))
 
 

@@ -65,15 +65,17 @@ class GGLR(nn.Module):
     def loss_function(self, ground, predict):
         self.mse_loss(ground, predict)
 class GPR(nn.Module):
-    def __init__(self, user_num, poi_num, embed_dim, layer_num, adjacency_matrix, distance_matrix):
+    def __init__(self, user_num, poi_num, embed_dim, layer_num, POI_POI_Graph, distance_matrix,user_POI_Graph, lambda1=0.2):
         super(GPR, self).__init__()
-        self.adjacency_matrix = adjacency_matrix
+        self.POI_POI_Graph = torch.tensor(POI_POI_Graph, dtype=torch.float32).to("cuda")
         self.distance_matrix = distance_matrix
+        self.user_POI_Graph = torch.tensor(user_POI_Graph, dtype= torch.float32).to("cuda")
         self.embed_dim = embed_dim
         self.k = layer_num
         self.user_num = user_num
         self.poi_num = poi_num
         self.sigmoid = nn.Sigmoid()
+        self.lambda1 = lambda1
         self.gglr = GGLR(embed_dim, layer_num).to("cuda")
 
         self.user_embed = nn.Embedding(user_num,embed_dim) # t
@@ -107,26 +109,32 @@ class GPR(nn.Module):
         q1 = self.q_incoming_embed(torch.LongTensor(range(self.poi_num)).to("cuda"))
         u1 = self.user_embed(torch.LongTensor(range(self.user_num)).to("cuda"))
 
-        p_k, q_k, e_ij_hat = self.gglr(p1, q1, self.adjacency_matrix, self.distance_matrix)
+        p_k, q_k, e_ij_hat = self.gglr(p1, q1, self.POI_POI_Graph, self.distance_matrix)
 
         u_k = []
-        newu = self.user_embed(users)
 
         user1 = self.user_layer1(u1)
-        p1 = torch.sum(self.outgoing_layer1(user_neighbors,edges),dim=0)
+        p1 = torch.sum(self.outgoing_layer1(p_k[0],self.user_POI_Graph.nonzero().T),dim=0)
         user1 = self.sigmoid(user1 + p1)
 
         user2 = self.user_layer2(user1)
-        p2 = torch.sum(self.outgoing_layer2(user_neighbors,edges),dim=0)
+        p2 = torch.sum(self.outgoing_layer2(p_k[1],self.user_POI_Graph.nonzero().T),dim=0)
         user2 = self.sigmoid(user2 + p2)
 
-        result_u = torch.cat()
-        result_q = torch.cat()
-        
 
-        rating_ul = torch.dot(result_u, result_q)
-        return rating_ul
+        result_u = torch.cat(user1,user2, dim=-1)
+        result_q = torch.cat(q_k[0],q_k[1],dim=-1)
+        
+        tt = result_u[users]
+        pp = result_q[train_positives]
+        qq = result_q[train_negatives]
+
+        rating_ul = torch.dot(tt, pp)
+        rating_ul_prime = torch.dot(tt,qq)
+        return rating_ul, rating_ul_prime, e_ij_hat 
     
-    def loss_function(self, rating_ul, rating_ul_p):
-        loss = -torch.sum(torch.log(self.sigmoid(rating_ul - rating_ul_p)))
+    def loss_function(self, rating_ul, rating_ul_p, e_ij_hat):
+        loss1 = self.gglr.loss_function(self.POI_POI_Graph,e_ij_hat)
+        loss2 = -torch.sum(torch.log(self.sigmoid(rating_ul - rating_ul_p)))
+        loss = loss2 + loss1*self.lambda1
         return loss
