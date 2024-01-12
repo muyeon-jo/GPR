@@ -138,10 +138,10 @@ def create_poi_sequence(user_data):
 
 def main():
     print("data loading")
-    dataset_ = datasets.Dataset(3725,10768,"./data/Tokyo/")
-    train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords = dataset_.generate_data(0)
-    pickle_save((train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords,dataset_),"dataset_Tokyo.pkl")
-    # train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords, dataset_ = pickle_load("dataset_Tokyo.pkl")
+    # dataset_ = datasets.Dataset(3725,10768,"./data/Tokyo/")
+    # train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords = dataset_.generate_data(0)
+    # pickle_save((train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords,dataset_),"dataset_Tokyo.pkl")
+    train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords, dataset_ = pickle_load("dataset_Tokyo.pkl")
     print("train data generated")
     
     G.fit_distance_distribution(train_matrix, place_coords)

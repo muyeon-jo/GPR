@@ -100,7 +100,7 @@ class GPR(nn.Module):
             if isinstance(m, nn.Linear) and m.bias is not None:
                 m.bias.data.zero_()
 
-    def forward(self,users, train_positives, train_negatives ):
+    def forward(self,user_ids, train_positives, train_negatives ):
         #gglr result
         p_outgoing = self.p_outgoing_embed(train_positives)
         q_incoming = self.q_incoming_embed(train_negatives)
@@ -122,10 +122,10 @@ class GPR(nn.Module):
         user2 = self.sigmoid(user2 + p2)
 
 
-        result_u = torch.cat(user1,user2, dim=-1)
-        result_q = torch.cat(q_k[0],q_k[1],dim=-1)
+        result_u = torch.cat((user1,user2), dim=-1)
+        result_q = torch.cat((q_k[0],q_k[1]),dim=-1)
         
-        tt = result_u[users]
+        tt = result_u[user_ids]
         pp = result_q[train_positives]
         qq = result_q[train_negatives]
 
