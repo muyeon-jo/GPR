@@ -8,7 +8,7 @@ import datasets
 import torch
 from powerLaw import PowerLaw, dist
 from model import GGLR, GPR
-from batches import get_GPR_batch
+from batches import get_GPR_batch,get_GPR_batch
 import time
 import random
 import multiprocessing as mp
@@ -25,9 +25,9 @@ def pickle_save(data, name):
 	    pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
 class Args:
     def __init__(self):
-        self.lr = 0.001# learning rate
-        self.lamda = 0.02 # model regularization rate
-        self.gglr_control = 0.1
+        self.lr = 0.01# learning rate
+        self.lamda = 0.0 # model regularization rate
+        self.gglr_control = 0.2
         self.scaling = 10
         self.batch_size = 4096 # batch size for training
         self.epochs = 50 # training epoches
@@ -49,9 +49,9 @@ def train(train_matrix, test_positive, test_negative, val_positive, val_negative
     args = Args()
     num_users = dataset.user_num
     num_items = dataset.poi_num
-    dist_mat = distance_mat(num_items, G.poi_coos)
-    pickle_save(dist_mat,"dist_mat_Tokyo.pkl")
-    dist_mat = pickle_load("dist_mat_Tokyo.pkl")
+    # dist_mat = distance_mat(num_items, G.poi_coos)
+    # pickle_save(dist_mat,"dist_mat_Yelp.pkl")
+    dist_mat = pickle_load("dist_mat_Yelp.pkl")
     dist_mat = torch.tensor(dist_mat,dtype=torch.float32).to(DEVICE)
     model = GPR(num_users, num_items, args.factor_num, 2, dataset.POI_POI_Graph,dist_mat, dataset.user_POI_Graph).to(DEVICE)
     
@@ -65,6 +65,7 @@ def train(train_matrix, test_positive, test_negative, val_positive, val_negative
         
         random.shuffle(idx)
         user_id, train_positives, train_negatives = get_GPR_batch(train_matrix,test_negative,num_items,idx,args.num_ng)
+        aaaa = 1
         batches = []
         nnn = int(len(user_id)/100)
         for i in range(99):
@@ -74,27 +75,27 @@ def train(train_matrix, test_positive, test_negative, val_positive, val_negative
         for idx_range in batches:
             optimizer.zero_grad() 
             
-            
             rating_ul, rating_ul_prime, e_ij_hat = model(user_id[idx_range[0]:idx_range[1]], train_positives[idx_range[0]:idx_range[1]], train_negatives[idx_range[0]:idx_range[1]])
-            loss = model.loss_function(rating_ul, rating_ul_prime, e_ij_hat )
+            loss = model.loss_function(rating_ul, rating_ul_prime, e_ij_hat)
             loss.backward()
 
             train_loss += loss.item()
-            
+            print(loss.item())
             optimizer.step() 
+            aaaa+=1
         end_time = int(time.time())
         print("Train Epoch: {}; time: {} sec; loss: {:.4f}".format(e+1, end_time-start_time,train_loss))
         
         model.eval() 
         with torch.no_grad():
             start_time = int(time.time())
-            val_precision, val_recall, val_hit = val.GeoIE_validation(model,args,num_users,val_positive,val_negative,train_matrix,True,[10],dist_mat)
+            val_precision, val_recall, val_hit = val.GPR_validation(model,args,num_users,val_positive,val_negative,train_matrix,True,[10],dist_mat)
             end_time = int(time.time())
             print("eval time: {} sec".format(end_time-start_time))
             if(max_recall < val_recall[0]):
                 max_recall = val_recall[0]
                 torch.save(model, model_directory+"/model")
-                precision, recall, hit = val.GeoIE_validation(model,args,num_users,test_positive,test_negative,train_matrix,False,k_list,dist_mat)
+                precision, recall, hit = val.GPR_validation(model,args,num_users,test_positive,test_negative,train_matrix,False,k_list,dist_mat)
                 f=open(result_directory+"/results.txt","w")
                 f.write("epoch:{}\n".format(e))
                 f.write("@k: " + str(k_list)+"\n")
@@ -137,7 +138,7 @@ def main():
     # dataset_ = datasets.Dataset(15359,14586,"./data/Yelp/")
     # train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords = dataset_.generate_data(0)
     # pickle_save((train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords,dataset_),"dataset_Yelp.pkl")
-    train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords, dataset_ = pickle_load("dataset_Tokyo.pkl")
+    train_matrix, test_positive, test_negative, val_positive, val_negative, place_coords, dataset_ = pickle_load("dataset_Yelp.pkl")
     print("train data generated")
     
     G.fit_distance_distribution(train_matrix, place_coords)

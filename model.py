@@ -31,37 +31,37 @@ class GGLR(nn.Module):
         self.leaky_relu = nn.LeakyReLU()
             
     def forward(self, p_outgoing, q_ingoing, adjacency_matrix, distance_matrix):
-        adj_mat = adjacency_matrix
+        # adj_mat = adjacency_matrix
 
         no = adjacency_matrix.clone()
         no[adjacency_matrix > 0.0] = 1
-        D_outgoing = torch.sum(no, dim=-1)
-        D_ingoing = torch.sum(no.transpose(0, 1), dim=-1)
+        D_outgoing = torch.sum(no, dim=-1) + 0.0000001
+        D_ingoing = torch.sum(no.transpose(0, 1), dim=-1)+ 0.0000001
         
         e_ij_hat = []
         p_k = []
         q_k = []
-        t =adjacency_matrix.nonzero().T
+        # t =adjacency_matrix.nonzero().T
         outgoing1 = self.outgoing_conv1(p_outgoing, adjacency_matrix.nonzero().T)
-        outgoing1 = torch.mm(adj_mat, outgoing1) #(poi * poi) (dot) (poi * emb)
-        tt = D_outgoing.reshape(-1,1)
-        ttt = D_ingoing.reshape(-1,1)
-        # outgoing1 = torch.div(outgoing1, D_outgoing.reshape(-1,1))
+        outgoing1 = torch.mm(adjacency_matrix, outgoing1) #(poi * poi) (dot) (poi * emb)
+        # tt = D_outgoing.reshape(-1,1)
+        # ttt = D_ingoing.reshape(-1,1)
+        outgoing1 = torch.div(outgoing1, D_outgoing.reshape(-1,1))
         outgoing1 = self.leaky_relu(outgoing1)
 
         outgoing2 = self.outgoing_conv2(outgoing1, adjacency_matrix.nonzero().T)
-        outgoing2 = torch.mm(adj_mat,outgoing2)
-        # outgoing2 = torch.div(outgoing2, D_outgoing.reshape(-1,1))
+        outgoing2 = torch.mm(adjacency_matrix,outgoing2)
+        outgoing2 = torch.div(outgoing2, D_outgoing.reshape(-1,1))
         outgoing2 = self.leaky_relu(outgoing2)
         
         ingoing1 = self.ingoing_conv1(q_ingoing, adjacency_matrix.T.nonzero().T)
-        ingoing1 = torch.mm(adj_mat.T, ingoing1) #(poi * poi) (dot) (poi * emb)
-        # ingoing1 = torch.div(ingoing1,  D_ingoing.reshape(-1,1))
+        ingoing1 = torch.mm(adjacency_matrix.T, ingoing1) #(poi * poi) (dot) (poi * emb)
+        ingoing1 = torch.div(ingoing1,  D_ingoing.reshape(-1,1))
         ingoing1 = self.leaky_relu(ingoing1)
 
         ingoing2 = self.ingoing_conv2(ingoing1, adjacency_matrix.T.nonzero().T)
-        ingoing2 = torch.mm(adj_mat.T,ingoing2)
-        # ingoing2 = torch.div(ingoing2, D_ingoing.reshape(-1,1))
+        ingoing2 = torch.mm(adjacency_matrix.T,ingoing2)
+        ingoing2 = torch.div(ingoing2, D_ingoing.reshape(-1,1))
         ingoing2 = self.leaky_relu(ingoing2)
 
         fx_ij = torch.mul(torch.mul(distance_matrix**self.b,self.a), torch.exp(torch.mul(distance_matrix,self.c)))
@@ -70,8 +70,8 @@ class GGLR(nn.Module):
         return [outgoing1,outgoing2], [ingoing1,ingoing2], e_ij_hat
     
     def loss_function(self, ground, predict):
-        # ground = ground.reshape(-1,1)
-        # predict = predict.reshape(-1,1)
+        ground = ground.reshape(-1,1)
+        predict = predict.reshape(-1,1)
         return self.mse_loss(ground, predict)
 class GPR(nn.Module):
     def __init__(self, user_num, poi_num, embed_dim, layer_num, POI_POI_Graph, distance_matrix,user_POI_Graph, lambda1=0.2):
@@ -111,24 +111,24 @@ class GPR(nn.Module):
 
     def forward(self,user_ids, train_positives, train_negatives ):
         #gglr result
-        p_outgoing = self.p_outgoing_embed(train_positives)
-        q_incoming = self.q_incoming_embed(train_negatives)
         
         p1 = self.p_outgoing_embed(torch.LongTensor(range(self.poi_num)).to("cuda"))
         q1 = self.q_incoming_embed(torch.LongTensor(range(self.poi_num)).to("cuda"))
         u1 = self.user_embed(torch.LongTensor(range(self.user_num)).to("cuda"))
 
         p_k, q_k, e_ij_hat = self.gglr(p1, q1, self.POI_POI_Graph, self.distance_matrix)
-
-        u_k = []
+        temp_user_emb = torch.tensor(np.zeros([self.user_num,self.embed_dim]), dtype= torch.float32, requires_grad = False).to("cuda")
+        p_k[0] = torch.cat([p_k[0],temp_user_emb],dim = 0)
+        p_k[1] = torch.cat([p_k[1],temp_user_emb],dim = 0)
 
         user1 = self.user_layer1(u1)
-        p1 = torch.sum(self.outgoing_layer1(p_k[0],self.user_POI_Graph.nonzero().T),dim=0)
-        user1 = self.sigmoid(user1 + p1)
+        edge_list = torch.stack([self.user_POI_Graph.nonzero().T[0].add(self.poi_num),self.user_POI_Graph.nonzero().T[1]])
+        # p1 = torch.sum(self.outgoing_layer1(p_k[0],edge_list),dim=0)
+        user1 = self.sigmoid(user1 + torch.sum(self.outgoing_layer1(p_k[0],edge_list),dim=0))
 
         user2 = self.user_layer2(user1)
-        p2 = torch.sum(self.outgoing_layer2(p_k[1],self.user_POI_Graph.nonzero().T),dim=0)
-        user2 = self.sigmoid(user2 + p2)
+        # p2 = torch.sum(self.outgoing_layer2(p_k[1],edge_list),dim=0)
+        user2 = self.sigmoid(user2 + torch.sum(self.outgoing_layer2(p_k[1],edge_list),dim=0))
 
 
         result_u = torch.cat((user1,user2), dim=-1)

@@ -1,8 +1,8 @@
-from batches import get_GPR_batch,get_GPR_batch_test
+from batches import get_GPR_batch_test
 import torch
 import eval_metrics
 from powerLaw import dist
-def GeoIE_validation(model, args,num_users, positive, negative, train_matrix,val_flag,k_list,dist_mat):
+def GPR_validation(model, args,num_users, positive, negative, train_matrix,val_flag,k_list,dist_mat):
     model.eval()
     recommended_list = []
     train_loss=0.0

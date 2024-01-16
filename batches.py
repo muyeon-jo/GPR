@@ -29,25 +29,32 @@ def get_GPR_batch(train_matrix,test_negative, num_poi, uids, negative_num):
 
         positives = train_matrix.getrow(uid).indices.tolist()
         random.shuffle(positives)
-        for ui in range(len(positives)):
-            user_id.append(uid)
+        
+        user_id.extend(np.array([uid]).repeat(len(positives)).reshape(-1,1).tolist())
+        # for ui in range(len(positives)):
+        #     user_id.append(uid)
 
         negative = list(set(item_list)-set(positives) - set(test_negative[uid]))
         random.shuffle(negative)
 
         negative = negative[:len(positives)*negative_num]
-        negatives = np.array(negative).reshape([-1,negative_num])
+        # negatives = np.array(negative).reshape([-1,negative_num])
 
-        a= np.array(positives).reshape(-1,1)
-        for po in a:
-            train_positives.append(po.item())
+        # a= np.array(positives).reshape(-1,1)
+        train_positives.extend(positives)
+        # for po in a:
+        #     train_positives.append(po.item())
+        train_negatives.extend(negative)
+        # for ne in negatives:
+        #     train_negatives.append(ne.item())
+    
+    train_positives = np.array(train_positives).reshape(-1,1)
+    train_negatives = np.array(train_negatives).reshape(-1,negative_num)
+    user_id = np.array(user_id).reshape(-1,1)
 
-        for ne in negatives:
-            train_negatives.append(ne.item())
-        
     train_positives = torch.LongTensor(train_positives).squeeze().to(DEVICE)
     train_negatives = torch.LongTensor(train_negatives).squeeze().to(DEVICE)
-    user_id = torch.LongTensor(user_id).to(DEVICE)
+    user_id = torch.LongTensor(user_id).squeeze().to(DEVICE)
 
     return user_id, train_positives, train_negatives
 
@@ -58,14 +65,17 @@ def get_GPR_batch_test(train_matrix, test_positive, test_negative, uid):
     positive = test_positive[uid]
     user_id = []
 
-    for ui in range(len(positive) + len(negative)):
-        user_id.append(uid)
+    user_id.extend(np.array([uid]).repeat(len(positive) + len(negative)).tolist())
+    # for ui in range(len(positive) + len(negative)):
+    #     user_id.append(uid)
 
-    for i in negative:
-        datas.append(i)
+    datas.extend(negative)
+    datas.extend(positive)
+    # for i in negative:
+    #     datas.append(i)
 
-    for i in positive:
-        datas.append(i)
+    # for i in positive:
+    #     datas.append(i)
 
     datas = torch.LongTensor(datas).to(DEVICE)
     user_id = torch.LongTensor(user_id).to(DEVICE)
